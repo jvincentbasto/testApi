@@ -1,173 +1,133 @@
-import { attachmentsSchema } from "../../shared/schemas/files.js";
+import { main as fileSchemas } from "../../shared/schemas/files.js";
 
-export const saleItemSchema = {
-  type: "object",
-  required: ["product", "qty"],
-  additionalProperties: false,
-  properties: {
-    product: { type: "string", pattern: "^[a-fA-F0-9]{24}$" }, // productVariant
-    qty: { type: "integer", minimum: 1 },
-  },
+// sales items schemas
+const salesItemsObject = {
+  // productVariant
+  product: { type: "string", pattern: "^[a-fA-F0-9]{24}$" },
+  qty: { type: "integer", minimum: 1 },
 };
-export const defaultSchema = {
+const salesItemsReq = {
+  anyOf: [
+    {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["product", "qty"],
+        additionalProperties: false,
+        properties: salesItemsObject,
+      },
+      minItems: 1,
+    },
+    { type: "string" },
+  ],
+};
+const saleItemsRes = {
+  anyOf: [
+    {
+      type: "array",
+      items: {
+        type: "object",
+        properties: salesItemsObject,
+        nullable: true,
+      },
+      minItems: 1,
+    },
+    { type: "string" },
+  ],
+};
+export const salesItemsSchemas = {
+  req: salesItemsReq,
+  res: saleItemsRes,
+};
+
+// sales schemas
+const salesObject = (values = {}, type = "req") => {
+  const map = {
+    customer: { type: "string", pattern: "^[a-fA-F0-9]{24}$" },
+    items: salesItemsSchemas.req,
+    // total: { type: "number", minimum: 0 },
+    attachments: fileSchemas.attachments.default[type],
+    attachmentsToRemove: fileSchemas.attachments.toRemove[type],
+    ...values,
+  };
+
+  return map;
+};
+const salesReq = {
   type: "object",
   required: ["customer", "items"],
   additionalProperties: false,
-  properties: {
-    customer: { type: "string", pattern: "^[a-fA-F0-9]{24}$" },
-    items: {
-      anyOf: [
-        {
-          type: "array",
-          minItems: 1,
-          items: saleItemSchema,
-        },
-        {
-          type: "string",
-        },
-      ],
-    },
-    // total: { type: "number", minimum: 0 },
-    attachments: attachmentsSchema,
-    attachmentsToRemove: {
-      anyOf: [
-        { type: "string", nullable: true },
-        {
-          type: "array",
-          items: { type: "string", nullable: true },
-        },
-      ],
-    },
-  },
+  properties: salesObject({}, "req"),
 };
-export default defaultSchema;
-
-export const postSchema = {
-  ...defaultSchema,
-  properties: {
-    ...defaultSchema.properties,
-  },
-};
-export const putSchema = {
-  ...defaultSchema,
-  required: [],
-  properties: {
-    ...defaultSchema.properties,
-  },
-};
-
-const dateInputSchema = {
-  anyOf: [
-    // YYYY-MM-DD
-    { type: "string", format: "date" },
-
-    // ISO datetime
-    { type: "string", format: "date-time" },
-
-    // timestamp as string
-    { type: "string", pattern: "^[0-9]{10,13}$" },
-
-    // timestamp as number (optional but recommended)
-    { type: "integer" },
-  ],
-};
-const reportSchema = {
+const salesRes = {
   type: "object",
-  additionalProperties: false,
-  required: [],
-  properties: {
-    // time units
-    year: { type: "integer", minimum: 1970 },
-    month: { type: "integer", minimum: 1, maximum: 12 },
-    week: { type: "integer", minimum: 1, maximum: 53 },
-    // backtracing units
-    backtrackYear: { type: "integer" },
-    backtrackMonth: { type: "integer" },
-    backtrackWeek: { type: "integer" },
-    backtrackDay: { type: "integer" },
-    // ranges
-    startDate: dateInputSchema,
-    endDate: dateInputSchema,
-    backtrackStartDate: dateInputSchema,
-    // fields
-    customer: { type: "string", pattern: "^[a-fA-F0-9]{24}$" },
-    products: {
-      type: "array",
-      items: { type: "string", pattern: "^[a-fA-F0-9]{24}$" },
-    }, // productVariant
-  },
+  properties: salesObject({}, "res"),
+};
+export const salesSchemas = {
+  req: salesReq,
+  req: salesRes,
 };
 
-const getProperties = (keys, props) => {
-  return keys.reduce((acc, key) => {
-    acc[key] = props[key];
-    return acc;
-  }, {});
+// core schemas
+const salesGetAllRes = {
+  type: "array",
+  items: salesRes,
+};
+const salesGetByIdRes = salesRes;
+// post
+const salesPostReq = {
+  ...salesReq,
+  properties: {
+    ...salesReq.properties,
+  },
+};
+const salesPostRes = {
+  ...salesRes,
+  properties: {
+    ...salesRes.properties,
+  },
+};
+// put
+const salesPutReq = {
+  ...salesReq,
+  required: [],
+  properties: {
+    ...salesReq.properties,
+  },
+};
+const salesPutRes = {
+  ...salesReq,
+  required: [],
+  properties: {
+    ...salesReq.properties,
+  },
+};
+// remove
+const salesRemoveRes = {
+  type: "object",
+  additionalProperties: true,
 };
 
-// reports by types
-const reportsYearlySchema = {
-  ...reportSchema,
-  required: [],
-  properties: {
-    ...getProperties(["customer", "products", "year"], reportSchema.properties),
+//
+export const salesRouteSchemas = {
+  getAll: salesGetAllRes,
+  getById: salesGetByIdRes,
+  post: {
+    req: salesPostReq,
+    res: salesPostRes,
   },
-};
-const reportsMonthlySchema = {
-  ...reportSchema,
-  required: [],
-  properties: {
-    ...getProperties(
-      ["customer", "products", "year", "month"],
-      reportSchema.properties,
-    ),
+  put: {
+    req: salesPutReq,
+    res: salesPutRes,
   },
-};
-const reportsWeeklySchema = {
-  ...reportSchema,
-  required: [],
-  properties: {
-    ...getProperties(
-      ["customer", "products", "year", "week"],
-      reportSchema.properties,
-    ),
-  },
+  remove: salesRemoveRes,
 };
 
-// reports by filters
-const reportsByRangeSchema = {
-  ...reportSchema,
-  required: [],
-  properties: {
-    ...getProperties(
-      ["customer", "products", "startDate", "endDate"],
-      reportSchema.properties,
-    ),
-  },
-};
-const reportsByBacktracingSchema = {
-  ...reportSchema,
-  required: [],
-  properties: {
-    ...getProperties(
-      ["customer", "products", "startDate"],
-      reportSchema.properties,
-    ),
-    year: { type: "integer" },
-    month: { type: "integer" },
-    week: { type: "integer" },
-    day: { type: "integer" },
-  },
-};
+//
+export const salesBulkRouteSchemas = {};
 
-export const reports = {
-  dateInput: dateInputSchema,
-  default: reportSchema,
-  // calendar based
-  yearly: reportsYearlySchema,
-  monthly: reportsMonthlySchema,
-  weekly: reportsWeeklySchema,
-  // filters
-  byRange: reportsByRangeSchema,
-  byBacktracing: reportsByBacktracingSchema,
+export const main = {
+  default: salesRouteSchemas,
+  bulk: salesBulkRouteSchemas,
 };
+export default main;
